@@ -1,12 +1,25 @@
-import { Col, Form, Input, message, Modal, Row } from "antd";
+import { Col, Form, Input, message, Modal, Row, Steps, Empty } from "antd";
 import { Rule } from "antd/lib/form";
 import { orderApi } from "api/order.api";
+import { productApi } from "api/product.api";
+import { customerApi } from "api/customer.api";
+import { cityApi } from "api/city.api";
+import { districtApi } from "api/district.api";
+import { wardApi } from "api/ward.api";
 import { SingleImageUpload } from "components/Upload/SingleImageUpload";
-import React, { useEffect, useImperativeHandle, useState } from "react";
+import React, { useEffect, useImperativeHandle, useState, useRef } from "react";
 import { ModalStatus } from "types/modal";
-import { Order } from "types/order";
-import { Modal as AntdModal, Tag, Table, Button } from "antd";
+import { Order, PaymentMethod } from "types/order";
+import {
+  Modal as AntdModal,
+  Tag,
+  Table,
+  Button,
+  InputNumber,
+  Select,
+} from "antd";
 import { PaymentMethodTrans, OrderStatusTrans } from "types/order";
+import { CustomerModal } from "../../Customer/components/CustomerModal";
 
 const rules: Rule[] = [{ required: true }];
 
@@ -25,6 +38,20 @@ export const OrderModal = React.forwardRef(
     const [loading, setLoading] = useState(false);
     const [visible, setVisible] = useState(false);
     const [status, setStatus] = useState<ModalStatus>("create");
+    const [currentStep, setCurrentStep] = useState(0);
+    const [cart, setCart] = useState<any[]>([]); // Sản phẩm trong giỏ hàng
+    const [productModalVisible, setProductModalVisible] = useState(false);
+    const [customerModalVisible, setCustomerModalVisible] = useState(false);
+    const [customerOptions, setCustomerOptions] = useState<any[]>([]);
+    const [customerLoading, setCustomerLoading] = useState(false);
+    const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+    const [selectedAddress, setSelectedAddress] = useState<any>(null); // Địa chỉ được chọn
+    const [addressModalVisible, setAddressModalVisible] = useState(false);
+    const [cityList, setCityList] = useState<any[]>([]);
+    const [districtList, setDistrictList] = useState<any[]>([]);
+    const [wardList, setWardList] = useState<any[]>([]);
+    const [addressForm] = Form.useForm();
+    const customerModalRef = useRef<any>(null);
 
     useImperativeHandle<any, OrderModal>(
       ref,
@@ -72,64 +99,686 @@ export const OrderModal = React.forwardRef(
       }
     };
 
+    // Thêm sản phẩm vào giỏ hàng (mở modal)
+    const handleAddProduct = () => {
+      setProductModalVisible(true);
+    };
+
+    // Khi chọn sản phẩm từ modal
+    const handleSelectProduct = (product: any) => {
+      setCart((prevCart) => {
+        const idx = prevCart.findIndex(
+          (item) => item.productId === product.id // so sánh productId thực tế
+        );
+        if (idx !== -1) {
+          // Nếu đã có, tăng số lượng
+          return prevCart.map((item, i) =>
+            i === idx ? { ...item, quantity: item.quantity + 1 } : item
+          );
+        } else {
+          // Nếu chưa có, thêm mới
+          return [
+            ...prevCart,
+            {
+              id: Date.now(), // id tạm cho Table
+              productId: product.id, // id thực tế của sản phẩm
+              name: product.name,
+              unitPrice: product.unitPrice ?? product.price,
+              price: product.unitPrice ?? product.price,
+              finalPrice: product.unitPrice ?? product.price,
+              quantity: 1,
+            },
+          ];
+        }
+      });
+      setProductModalVisible(false);
+    };
+
+    // Xóa sản phẩm khỏi giỏ hàng
+    const handleRemoveProduct = (id: number) => {
+      setCart(cart.filter((item) => item.id !== id));
+    };
+
+    // Thay đổi số lượng sản phẩm trong giỏ hàng
+    const handleChangeQuantity = (id: number, value: number) => {
+      setCart(
+        cart.map((item) =>
+          item.id === id ? { ...item, quantity: value } : item
+        )
+      );
+    };
+
+    // Tổng kết
+    const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
+    const totalMoney = cart.reduce(
+      (sum, item) => sum + (item.unitPrice || 0) * item.quantity,
+      0
+    );
+
+    // Hàm tìm kiếm khách hàng realtime
+    const handleCustomerSearch = async (value: string) => {
+      setCustomerLoading(true);
+      try {
+        const res = await customerApi.findAll({
+          search: value,
+          page: 1,
+          limit: 20,
+        });
+        setCustomerOptions(res.data?.items || res.data?.customers || []);
+      } catch (e) {
+        setCustomerOptions([]);
+      } finally {
+        setCustomerLoading(false);
+      }
+    };
+
+    // Lấy danh sách tỉnh/thành
+    const fetchCities = async () => {
+      try {
+        const res = await cityApi.findAll();
+        setCityList(res.data?.items || []);
+      } catch {}
+    };
+    // Lấy danh sách quận/huyện
+    const fetchDistricts = async (cityCode: string) => {
+      try {
+        const res = await districtApi.findAll({ cityCode });
+        setDistrictList(res.data?.items || []);
+      } catch {}
+    };
+    // Lấy danh sách xã/phường
+    const fetchWards = async (districtCode: string) => {
+      try {
+        const res = await wardApi.findAll({ districtCode });
+        setWardList(res.data?.items || []);
+      } catch {}
+    };
+
+    // Các bước
+    const steps = [
+      {
+        title: "Giỏ hàng",
+        content: (
+          <>
+            <Button
+              type="primary"
+              onClick={handleAddProduct}
+              style={{ marginBottom: 16 }}
+            >
+              + Thêm sản phẩm
+            </Button>
+            <Table
+              dataSource={cart}
+              rowKey="id"
+              pagination={false}
+              bordered
+              locale={{ emptyText: <Empty description="Trống" /> }}
+            >
+              <Table.Column title="Sản phẩm" dataIndex="name" key="name" />
+              <Table.Column
+                title="Đơn giá (VNĐ)"
+                dataIndex="unitPrice"
+                key="unitPrice"
+                render={(v) => (v ? v.toLocaleString("vi-VN") : 0)}
+              />
+              <Table.Column
+                title="Khuyến mãi (VNĐ)"
+                key="discount"
+                render={(_, r) =>
+                  r.price && r.unitPrice && r.price - r.unitPrice > 0
+                    ? (r.price - r.unitPrice).toLocaleString("vi-VN")
+                    : 0
+                }
+              />
+              <Table.Column
+                title="Số lượng"
+                dataIndex="quantity"
+                key="quantity"
+                render={(_, r) => (
+                  <InputNumber
+                    min={1}
+                    value={r.quantity}
+                    onChange={(value) => handleChangeQuantity(r.id, value || 1)}
+                    style={{ width: 70 }}
+                  />
+                )}
+              />
+              <Table.Column
+                title="Thành tiền (VNĐ)"
+                key="total"
+                render={(_, r) =>
+                  ((r.unitPrice || 0) * r.quantity).toLocaleString("vi-VN")
+                }
+              />
+              <Table.Column
+                title="Hành động"
+                key="action"
+                render={(_, r) => (
+                  <Button danger onClick={() => handleRemoveProduct(r.id)}>
+                    Xóa
+                  </Button>
+                )}
+              />
+            </Table>
+            <div style={{ marginTop: 16, textAlign: "right" }}>
+              <b>Tổng kết</b> &nbsp; Số lượng: <b>{totalQuantity}</b> &nbsp;
+              Thành tiền: <b>{totalMoney.toLocaleString("vi-VN")}</b>
+            </div>
+            <ProductSelectModal
+              visible={productModalVisible}
+              onSelect={handleSelectProduct}
+              onCancel={() => setProductModalVisible(false)}
+            />
+          </>
+        ),
+      },
+      {
+        title: "Thông tin nhận hàng",
+        content: (
+          <>
+            <Form layout="vertical" form={form} style={{ marginTop: 16 }}>
+              <Form.Item label="Khách hàng">
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Select
+                    showSearch
+                    allowClear
+                    placeholder="Tìm kiếm khách hàng theo tên, số điện thoại, email"
+                    loading={customerLoading}
+                    filterOption={false}
+                    onSearch={handleCustomerSearch}
+                    onFocus={() => handleCustomerSearch("")}
+                    onChange={(value) => {
+                      const customer = customerOptions.find(
+                        (c) => c.id === value
+                      );
+                      setSelectedCustomer(customer || null);
+                      setSelectedAddress(null);
+                    }}
+                    value={selectedCustomer?.id}
+                    style={{ width: 400 }}
+                    optionFilterProp="children"
+                    notFoundContent={
+                      customerLoading
+                        ? "Đang tải..."
+                        : "Không tìm thấy khách hàng"
+                    }
+                  >
+                    {customerOptions.map((c) => (
+                      <Select.Option key={c.id} value={c.id}>
+                        {c.fullName || c.name} - {c.phone}
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </div>
+              </Form.Item>
+              <Form.Item label="Thông tin nhận hàng">
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Select
+                    showSearch
+                    allowClear
+                    placeholder="Chọn địa chỉ nhận hàng từ KH."
+                    value={selectedAddress?.id}
+                    style={{ width: 400 }}
+                    disabled={!selectedCustomer}
+                    onChange={(value) => {
+                      const addr = (selectedCustomer?.addresses || []).find(
+                        (a: any) => a.id === value
+                      );
+                      setSelectedAddress(addr || null);
+                      if (addr) {
+                        form.setFieldsValue({
+                          receiverName: addr.receiverName,
+                          receiverPhone: addr.receiverPhone,
+                          receiverAddress: addr.address,
+                        });
+                      } else {
+                        form.setFieldsValue({
+                          receiverName: undefined,
+                          receiverPhone: undefined,
+                          receiverAddress: undefined,
+                        });
+                      }
+                    }}
+                  >
+                    {(selectedCustomer?.addresses || []).map((a: any) => (
+                      <Select.Option key={a.id} value={a.id}>
+                        {a.address}
+                      </Select.Option>
+                    ))}
+                  </Select>
+                  <Button
+                    type="primary"
+                    disabled={!selectedCustomer}
+                    onClick={async () => {
+                      setAddressModalVisible(true);
+                      // Gọi lại API lấy tỉnh/thành khi mở modal
+                      const res = await cityApi.findAll();
+                      setCityList(res.data?.cities || res.data?.items || []);
+                      // Truyền tên và phone vào form địa chỉ
+                      addressForm.setFieldsValue({
+                        receiverName:
+                          selectedCustomer?.fullName ||
+                          selectedCustomer?.name ||
+                          "",
+                        receiverPhone: selectedCustomer?.phone || "",
+                        cityCode: undefined,
+                        districtCode: undefined,
+                        wardCode: undefined,
+                        detail: undefined,
+                      });
+                      setDistrictList([]);
+                      setWardList([]);
+                    }}
+                  >
+                    Thêm mới
+                  </Button>
+                </div>
+              </Form.Item>
+
+              <div
+                style={{
+                  background: "#fafafa",
+                  border: "1px solid #eee",
+                  borderRadius: 4,
+                  padding: 16,
+                  marginBottom: 8,
+                }}
+              >
+                <div>
+                  <b>Khách hàng:</b>{" "}
+                  {selectedCustomer
+                    ? `${
+                        selectedCustomer.fullName || selectedCustomer.name
+                      } - ${selectedCustomer.phone}`
+                    : "--"}
+                </div>
+                <div>
+                  <b>Tên người nhận:</b> {selectedAddress?.receiverName || "--"}
+                </div>
+                <div>
+                  <b>Số điện thoại người nhận:</b>{" "}
+                  {selectedAddress?.receiverPhone || "--"}
+                </div>
+                <div>
+                  <b>Địa chỉ người nhận:</b> {selectedAddress?.address || "--"}
+                </div>
+              </div>
+            </Form>
+            <Modal
+              visible={addressModalVisible}
+              title="Thêm mới địa chỉ nhận hàng"
+              onCancel={() => setAddressModalVisible(false)}
+              onOk={async () => {
+                const values = await addressForm.validateFields();
+                // Tạo địa chỉ mới (giả lập, thực tế nên gọi API lưu)
+                const newAddress = {
+                  id: Date.now(),
+                  ...values,
+                  address: `${values.detail}, ${
+                    wardList.find((w) => w.code === values.wardCode)?.name || ""
+                  }, ${
+                    districtList.find((d) => d.code === values.districtCode)
+                      ?.name || ""
+                  }, ${
+                    cityList.find((c) => c.code === values.cityCode)?.name || ""
+                  }`,
+                };
+                // Thêm vào danh sách địa chỉ của khách hàng đang chọn
+                if (selectedCustomer) {
+                  selectedCustomer.addresses = [
+                    ...(selectedCustomer.addresses || []),
+                    newAddress,
+                  ];
+                  setSelectedAddress(newAddress);
+                }
+                setAddressModalVisible(false);
+                addressForm.resetFields();
+              }}
+              footer={null}
+              width={500}
+            >
+              <Form form={addressForm} layout="vertical">
+                <Form.Item
+                  label="Tên người nhận"
+                  name="receiverName"
+                  rules={[{ required: true }]}
+                >
+                  <Input />
+                </Form.Item>
+                <Form.Item
+                  label="Số điện thoại người nhận"
+                  name="receiverPhone"
+                  rules={[{ required: true }]}
+                >
+                  <Input />
+                </Form.Item>
+                <Form.Item
+                  label="Tỉnh/Thành phố"
+                  name="cityCode"
+                  rules={[{ required: true }]}
+                >
+                  <Select
+                    showSearch
+                    placeholder="Chọn tỉnh/thành phố"
+                    onChange={(cityCode) => {
+                      // Tìm city theo code
+                      const selectedCity = cityList.find(
+                        (c) => c.code === cityCode
+                      );
+                      if (selectedCity) {
+                        districtApi
+                          .findAll({ parentCode: selectedCity.code })
+                          .then((res) => {
+                            setDistrictList(res.data.districts || []);
+                          });
+                      }
+                      setWardList([]);
+                      addressForm.setFieldsValue({
+                        districtCode: undefined,
+                        wardCode: undefined,
+                      });
+                    }}
+                    options={cityList.map((city) => ({
+                      label: city.nameWithType,
+                      value: city.code,
+                    }))}
+                  />
+                </Form.Item>
+                <Form.Item
+                  label="Quận/Huyện"
+                  name="districtCode"
+                  rules={[{ required: true }]}
+                >
+                  <Select
+                    showSearch
+                    placeholder="Chọn quận/huyện"
+                    onChange={(districtCode) => {
+                      const selectedDistrict = districtList.find(
+                        (d) => d.code === districtCode
+                      );
+                      if (selectedDistrict) {
+                        wardApi
+                          .findAll({ parentCode: selectedDistrict.code })
+                          .then((res) => {
+                            setWardList(res.data.wards || []);
+                          });
+                      }
+                      addressForm.setFieldsValue({ wardCode: undefined });
+                    }}
+                    options={districtList.map((d) => ({
+                      label: d.nameWithType,
+                      value: d.code,
+                    }))}
+                    disabled={!addressForm.getFieldValue("cityCode")}
+                  />
+                </Form.Item>
+                <Form.Item
+                  label="Xã/Phường"
+                  name="wardCode"
+                  rules={[{ required: true }]}
+                >
+                  <Select
+                    showSearch
+                    placeholder="Chọn xã/phường"
+                    options={wardList.map((w) => ({
+                      label: w.nameWithType,
+                      value: w.code,
+                    }))}
+                    disabled={!addressForm.getFieldValue("districtCode")}
+                  />
+                </Form.Item>
+                <Form.Item
+                  label="Địa chỉ cụ thể"
+                  name="detail"
+                  rules={[{ required: true }]}
+                >
+                  <Input placeholder="Số nhà và tên đường" />
+                </Form.Item>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: 8,
+                  }}
+                >
+                  <Button onClick={() => setAddressModalVisible(false)}>
+                    Hủy
+                  </Button>
+                  <Button
+                    type="primary"
+                    onClick={async () => {
+                      const values = await addressForm.validateFields();
+                      const newAddress = {
+                        id: Date.now(),
+                        ...values,
+                        address: `${values.detail}, ${
+                          wardList.find((w) => w.code === values.wardCode)
+                            ?.nameWithType || ""
+                        }, ${
+                          districtList.find(
+                            (d) => d.code === values.districtCode
+                          )?.nameWithType || ""
+                        }, ${
+                          cityList.find((c) => c.code === values.cityCode)
+                            ?.nameWithType || ""
+                        }`,
+                      };
+                      if (selectedCustomer) {
+                        selectedCustomer.addresses = [
+                          ...(selectedCustomer.addresses || []),
+                          newAddress,
+                        ];
+                        setSelectedAddress(newAddress);
+                      }
+                      setAddressModalVisible(false);
+                      addressForm.resetFields();
+                    }}
+                  >
+                    OK
+                  </Button>
+                </div>
+              </Form>
+            </Modal>
+          </>
+        ),
+      },
+      {
+        title: "Thông đơn hàng",
+        content: (
+          <div style={{ marginTop: 16 }}>
+            <b>Kiểm tra lại thông tin đơn hàng trước khi xác nhận.</b>
+            <div style={{ marginTop: 8 }}>
+              <b>Sản phẩm:</b>
+              <ul>
+                {cart.map((item) => (
+                  <li key={item.id}>
+                    {item.name} x {item.quantity} -{" "}
+                    {(item.finalPrice * item.quantity).toLocaleString("vi-VN")}đ
+                  </li>
+                ))}
+              </ul>
+              <b>Người nhận:</b>{" "}
+              {form.getFieldValue("receiverName") ||
+                selectedAddress?.receiverName ||
+                "--"}
+              <br />
+              <b>SĐT:</b>{" "}
+              {form.getFieldValue("receiverPhone") ||
+                selectedAddress?.receiverPhone ||
+                "--"}
+              <br />
+              <b>Địa chỉ:</b>{" "}
+              {form.getFieldValue("receiverAddress") ||
+                selectedAddress?.address ||
+                "--"}
+              <div style={{ marginTop: 8 }}>
+                <b>Tổng tiền:</b> {totalMoney.toLocaleString("vi-VN")}đ
+              </div>
+              {/* Thêm chọn phương thức thanh toán */}
+              <Form
+                form={form}
+                layout="vertical"
+                style={{ marginTop: 16, maxWidth: 300 }}
+              >
+                <Form.Item
+                  name="paymentMethod"
+                  label="Phương thức thanh toán"
+                  rules={[
+                    {
+                      required: true,
+                      message: "Vui lòng chọn phương thức thanh toán!",
+                    },
+                  ]}
+                  initialValue={PaymentMethod.COD}
+                >
+                  <Select>
+                    <Select.Option value={PaymentMethod.COD}>
+                      Thanh toán khi nhận hàng (COD)
+                    </Select.Option>
+                    <Select.Option value={PaymentMethod.BankTransfer}>
+                      Chuyển khoản ngân hàng
+                    </Select.Option>
+                  </Select>
+                </Form.Item>
+              </Form>
+            </div>
+          </div>
+        ),
+      },
+    ];
+
     return (
       <Modal
         onCancel={() => {
           onClose?.();
           setVisible(false);
+          setCurrentStep(0);
+          setCart([]);
         }}
         visible={visible}
-        title={status == "create" ? "Create Order" : "Update Order"}
+        title="Tạo đơn hàng"
         style={{ top: 20 }}
-        width={700}
-        confirmLoading={loading}
-        onOk={() => {
-          status == "create" ? createData() : updateData();
-        }}
+        width={900}
+        footer={null}
       >
-        <Form layout="vertical" form={form}>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item label="Username" name="username" rules={rules}>
-                <Input placeholder="" />
-              </Form.Item>
-            </Col>
-
-            {status == "create" && (
-              <Col span={12}>
-                <Form.Item label="Password" name="password" rules={rules}>
-                  <Input placeholder="" />
-                </Form.Item>
-              </Col>
-            )}
-
-            <Col span={12}>
-              <Form.Item label="Name" name="name" rules={rules}>
-                <Input placeholder="" />
-              </Form.Item>
-            </Col>
-
-            <Col span={12}>
-              <Form.Item label="Phone" name="phone" rules={rules}>
-                <Input placeholder="" />
-              </Form.Item>
-            </Col>
-
-            <Col span={12}>
-              <Form.Item label="Email" name="email">
-                <Input placeholder="" />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Form.Item shouldUpdate={true}>
-            {() => {
-              return {
-                /* Avatar upload removed because 'avatar' is not a property of Order */
-              };
+        <Steps current={currentStep} style={{ marginBottom: 24 }}>
+          {steps.map((item) => (
+            <Steps.Step key={item.title} title={item.title} />
+          ))}
+        </Steps>
+        <div>{steps[currentStep].content}</div>
+        <div style={{ marginTop: 24, textAlign: "right" }}>
+          <Button
+            onClick={() => setCurrentStep(currentStep - 1)}
+            disabled={currentStep === 0}
+            style={{ marginRight: 8 }}
+          >
+            Quay lại
+          </Button>
+          {currentStep < steps.length - 1 && (
+            <Button
+              type="primary"
+              onClick={() => {
+                if (currentStep === 1 && selectedAddress) {
+                  form.setFieldsValue({
+                    receiverName: selectedAddress.receiverName,
+                    receiverPhone: selectedAddress.receiverPhone,
+                    receiverAddress: selectedAddress.address,
+                  });
+                }
+                setCurrentStep(currentStep + 1);
+              }}
+              disabled={currentStep === 0 && cart.length === 0}
+            >
+              Tiếp tục
+            </Button>
+          )}
+          {currentStep === steps.length - 1 && (
+            <Button
+              type="primary"
+              loading={loading}
+              onClick={async () => {
+                try {
+                  await form.validateFields();
+                  if (!selectedCustomer || !selectedCustomer.id) {
+                    message.error(
+                      "Vui lòng chọn khách hàng trước khi xác nhận!"
+                    );
+                    return;
+                  }
+                  // Đảm bảo form luôn có thông tin nhận hàng đúng
+                  if (selectedAddress) {
+                    form.setFieldsValue({
+                      receiverName: selectedAddress.receiverName,
+                      receiverPhone: selectedAddress.receiverPhone,
+                      receiverAddress: selectedAddress.address,
+                    });
+                  }
+                  setLoading(true);
+                  const formData = form.getFieldsValue();
+                  const payload = {
+                    order: {
+                      receiverName:
+                        formData.receiverName ||
+                        selectedAddress?.receiverName ||
+                        "",
+                      receiverPhone:
+                        formData.receiverPhone ||
+                        selectedAddress?.receiverPhone ||
+                        "",
+                      receiverAddress:
+                        formData.receiverAddress ||
+                        selectedAddress?.address ||
+                        "",
+                      note: "",
+                      paymentMethod:
+                        formData.paymentMethod || PaymentMethod.COD, // <-- Lấy từ form
+                    },
+                    details: cart.map((item) => ({
+                      productId: item.productId,
+                      quantity: item.quantity,
+                      manualDiscount: 0,
+                      name: item.name,
+                    })),
+                    customerId: Number(selectedCustomer.id),
+                    cityId: selectedAddress?.cityCode || 0,
+                    districtId: selectedAddress?.districtCode || 0,
+                    wardId: selectedAddress?.wardCode || 0,
+                  };
+                  await orderApi.create(payload);
+                  message.success("Tạo đơn hàng thành công!");
+                  setVisible(false);
+                  setCurrentStep(0);
+                  setCart([]);
+                  onSubmitOk();
+                } catch (e) {
+                  // Có thể show message lỗi ở đây nếu muốn
+                } finally {
+                  setLoading(false);
+                }
+              }}
+            >
+              Xác nhận
+            </Button>
+          )}
+        </div>
+        {customerModalVisible && (
+          <CustomerModal
+            visible={customerModalVisible}
+            onCancel={() => setCustomerModalVisible(false)}
+            onOk={(newCustomer) => {
+              setCustomerOptions((prev) => [newCustomer, ...prev]);
+              setSelectedCustomer(newCustomer);
+              setCustomerModalVisible(false);
             }}
-          </Form.Item>
-        </Form>
+            ref={customerModalRef}
+            onClose={() => {}}
+            onSubmitOk={async () => {
+              // Sau khi thêm mới, reload lại danh sách khách hàng
+              await handleCustomerSearch("");
+            }}
+          />
+        )}
       </Modal>
     );
   }
@@ -355,5 +1004,82 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         </Button>
       </div>
     </AntdModal>
+  );
+};
+
+// Modal chọn sản phẩm
+const ProductSelectModal = ({ visible, onSelect, onCancel }: any) => {
+  const [search, setSearch] = useState("");
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Lấy danh sách sản phẩm từ API
+  useEffect(() => {
+    if (!visible) return;
+    setLoading(true);
+    productApi
+      .findAll({ search, page: 1, limit: 50 })
+      .then((res: any) => {
+        setProducts(res.data.products || res.data.items || []);
+      })
+      .finally(() => setLoading(false));
+  }, [visible, search]);
+
+  return (
+    <Modal
+      visible={visible}
+      title="Chọn sản phẩm"
+      onCancel={onCancel}
+      footer={null}
+      width={900}
+    >
+      <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
+        <Input
+          allowClear
+          placeholder="Nhập tên sản phẩm"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ width: 250 }}
+        />
+        {/* Có thể thêm filter loại sản phẩm nếu cần */}
+      </div>
+      <Table
+        dataSource={products}
+        rowKey="id"
+        loading={loading}
+        pagination={{ pageSize: 50, showTotal: (t) => `Tổng ${t} dòng` }}
+        bordered
+      >
+        <Table.Column
+          title="Tên SP"
+          key="name"
+          render={(_, r: any) => (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <img
+                src={r.image || r.thumbnail || r.avatar || ""}
+                alt=""
+                style={{ width: 40, height: 40 }}
+              />
+              <span>{r.name}</span>
+            </div>
+          )}
+        />
+        <Table.Column
+          title="Giá gốc"
+          dataIndex="unitPrice"
+          key="unitPrice"
+          render={(v) => v?.toLocaleString("vi-VN")}
+        />
+        <Table.Column
+          title="Thao tác"
+          key="action"
+          render={(_, r: any) => (
+            <Button type="primary" onClick={() => onSelect(r)}>
+              Chọn
+            </Button>
+          )}
+        />
+      </Table>
+    </Modal>
   );
 };
