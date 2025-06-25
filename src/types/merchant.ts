@@ -1,0 +1,40 @@
+import { MerchantGallery } from "./merchantGallery";
+
+export interface Merchant {
+  id: number;
+  createdAt: number;
+  updatedAt: number;
+  name: string;
+  website: string;
+  facebook: string;
+  instagram: string;
+  address: string;
+  isDeleted: boolean;
+  avatar: string;
+  isBlock: boolean;
+  expiredAt: number;
+  rateStar: number;
+  rateCount: number;
+  introduce: string;
+  clientCanCancelOrReschedule: number;
+  clientCanBookAppointmentBeforeStart: number;
+  clientCanBookAppointmentRangeTime: number;
+  timeSlotInterval: number;
+  importantInfo: string;
+  turnOnTextConfirmation: boolean;
+  turnOnTextReminder: boolean;
+  turnOnTextCancellation: boolean;
+  turnOnTextNoShow: boolean;
+  templateConfirmation: string;
+  templateReminder: string;
+  templateCancellation: string;
+  templateNoShow: string;
+  isAccept: boolean;
+  contactFirstName: string;
+  contactLastName: string;
+  contactPhone: string;
+  email: string;
+  countryCode: string;
+  privateNote: string;
+  merchantGalleries: Partial<MerchantGallery>[];
+}

@@ -1,0 +1,60 @@
+export interface LogTransportExpresses {
+  id: number;
+  createdAt: number;
+  updatedAt: number;
+  isDeleted: boolean;
+  deletedAt: number;
+  codAmount: number;
+  codTransferDate: null | string;
+  clientOrderCode: string;
+  convertedWeight: number;
+  description: string;
+  codFailedFee: number;
+  codFee: number;
+  coupon: number;
+  deliverRemoteAreasFee: number;
+  documentReturn: number;
+  doubleCheck: number;
+  insurance: number;
+  mainService: number;
+  pickRemoteAreasFee: number;
+  r2S: number;
+  return: number;
+  stationDO: number;
+  stationPU: number;
+  total: number;
+  height: number;
+  isPartialReturn: boolean;
+  length: number;
+  orderCode: string;
+  partialReturnCode: string;
+  paymentType: number;
+  reason: string;
+  reasonCode: string;
+  shopID: number;
+  status: string;
+  time: string;
+  totalFee: number;
+  type: string;
+  warehouse: string;
+  weight: number;
+  width: number;
+}
+
+export interface LogTransportEconomys {
+  id: number;
+  createdAt: number;
+  updatedAt: number;
+  isDeleted: boolean;
+  deletedAt: number;
+  partnerId: string;
+  labelId: string;
+  statusId: number;
+  actionTime: string;
+  reasonCode: string;
+  reason: string;
+  weight: number;
+  fee: number;
+  pickMoney: number;
+  returnPartPackage: number;
+}

@@ -1,0 +1,53 @@
+.payment-type-container {
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
+  user-select: none;
+  display: flex;
+
+  .payment-type-item {
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 60px;
+    height: 50px;
+    flex-direction: column;
+    padding: 0;
+    margin-right: 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    filter: grayscale(0.2);
+    max-width: 110px;
+    border: 1px solid #efefef;
+    text-align: center;
+    cursor: pointer;
+
+    p {
+      margin-bottom: 0;
+      margin-top: 3px;
+      font-size: 12px;
+      line-height: 120% !important;
+    }
+
+    &:hover {
+      background-color: #3c83fc12;
+    }
+
+    &.active {
+      background-color: #169d9f29;
+      filter: grayscale(0);
+      border-bottom: 2px solid #169c9f;
+    }
+
+    &:last-child {
+      margin-right: 0;
+    }
+
+    &.disabled {
+      cursor: not-allowed;
+    }
+  }
+}
