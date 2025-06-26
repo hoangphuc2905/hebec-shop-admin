@@ -9,6 +9,15 @@ import { ModalStatus } from "types/modal";
 import { Product } from "types/product";
 
 const rules: Rule[] = [{ required: true }];
+const priceRules: Rule[] = [
+  { required: true, message: "Vui lòng nhập giá" },
+  {
+    type: "number",
+    min: 1,
+    message: "Giá phải lớn hơn 0",
+    transform: (value) => Number(value),
+  },
+];
 
 export interface ProductModal {
   handleCreate: () => void;
@@ -21,6 +30,8 @@ interface ProductModalProps {
 
 interface ProductForm extends Product {
   productCategoryId: number;
+  importPrice?: number;
+  unitPrice: number;
 }
 
 export const ProductModal = React.forwardRef(
@@ -69,10 +80,15 @@ export const ProductModal = React.forwardRef(
 
     const createData = async () => {
       const valid = await form.validateFields();
-      const { productCategoryId, unitPrice, ...product } =
+      const { productCategoryId, importPrice, ...product } =
         form.getFieldsValue();
       const data = {
-        product: { ...product, unitPrice: Number(unitPrice) },
+        product: {
+          ...product,
+          importPrice: Number(importPrice),
+          unitPrice: Number(importPrice), // Lưu cả importPrice và unitPrice
+          // KHÔNG truyền finalPrice
+        },
         productCategoryId,
       };
 
@@ -89,10 +105,15 @@ export const ProductModal = React.forwardRef(
 
     const updateData = async () => {
       const valid = await form.validateFields();
-      const { productCategoryId, unitPrice, ...product } =
+      const { productCategoryId, importPrice, ...product } =
         form.getFieldsValue();
       const data = {
-        product: { ...product, unitPrice: Number(unitPrice) },
+        product: {
+          ...product,
+          importPrice: Number(importPrice),
+          unitPrice: Number(importPrice), // Lưu cả importPrice và unitPrice
+          // KHÔNG truyền finalPrice
+        },
         productCategoryId,
       };
       setLoading(true);
@@ -135,7 +156,6 @@ export const ProductModal = React.forwardRef(
                     <Form.Item label="Hình ảnh" name="image">
                       <SingleImageUpload
                         onUploadOk={(path: string) => {
-                          console.log("onUploadOk:", path);
                           form.setFieldsValue({
                             image: path,
                           });
@@ -152,19 +172,7 @@ export const ProductModal = React.forwardRef(
                 <Input placeholder="" />
               </Form.Item>
             </Col>
-
             <Col span={12}>
-              <Form.Item label="Giá" name="unitPrice" rules={rules}>
-                <InputNumber
-                  value={form.getFieldValue("unitPrice")}
-                  min={0}
-                  style={{ width: "100%" }}
-                  placeholder=""
-                />
-              </Form.Item>
-            </Col>
-
-            <Col span={24}>
               <Form.Item
                 label="Danh mục"
                 name="productCategoryId"
@@ -178,7 +186,16 @@ export const ProductModal = React.forwardRef(
                 />
               </Form.Item>
             </Col>
-
+            <Col span={12}>
+              <Form.Item label="Giá gốc" name="importPrice" rules={priceRules}>
+                <InputNumber min={1} style={{ width: "100%" }} placeholder="" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Giá bán lẻ" name="unitPrice" rules={priceRules}>
+                <InputNumber min={1} style={{ width: "100%" }} placeholder="" />
+              </Form.Item>
+            </Col>
             <Col span={24}>
               <Form.Item label="Mô tả" name="description">
                 <Input.TextArea rows={3} placeholder="" />

@@ -99,7 +99,25 @@ export const ProductCategoryPage = ({ title = "" }) => {
           rowKey="id"
           dataSource={productCategories}
         >
-          <Column title="Tên" dataIndex="name" key="name" />
+          <Column
+            title="Tên"
+            key="image_name"
+            render={(text, record: ProductCategory) => (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <img
+                  src={$url(record.icon)}
+                  alt={record.name}
+                  style={{
+                    width: 40,
+                    height: 40,
+                    objectFit: "cover",
+                    borderRadius: 4,
+                  }}
+                />
+                <span>{record.name}</span>
+              </div>
+            )}
+          />
           <Column title="Mô tả" dataIndex="description" key="description" />
           <Column
             width={180}
@@ -107,15 +125,6 @@ export const ProductCategoryPage = ({ title = "" }) => {
             key="action"
             render={(text, record: ProductCategory) => (
               <Space>
-                <Button
-                  type="primary"
-                  onClick={() => {
-                    setSelectedCategory(record);
-                    setProductModalVisible(true);
-                  }}
-                >
-                  Sản phẩm
-                </Button>
                 <Button
                   type="primary"
                   onClick={() => {

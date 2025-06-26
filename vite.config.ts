@@ -9,8 +9,8 @@ import {
 export default defineConfig({
   plugins: [react(), viteTsconfigPaths(), svgrPlugin(), tsconfigPaths()],
   server: {
-    // open: true,
-    // host: true,
+    open: true,
+    host: true,
     port: 5174,
   },
   // mode: "development",

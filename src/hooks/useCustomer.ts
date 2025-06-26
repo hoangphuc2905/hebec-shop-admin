@@ -1,5 +1,5 @@
 import { customerApi } from "api/customer.api";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Customer } from "types/customer";
 import { QueryParam } from "types/query";
 
@@ -10,22 +10,22 @@ interface UseCustomerProps {
 }
 
 export const useCustomer = ({ initQuery }: UseCustomerProps) => {
+  const defaultQuery = { page: 1, limit: 10, search: "", ...initQuery };
   const [data, setData] = useState<Customer[]>([]);
   const [total, setTotal] = useState(0);
-  const [query, setQuery] = useState<CustomerQuery>(initQuery);
+  const [query, setQuery] = useState<CustomerQuery>(defaultQuery);
   const [loading, setLoading] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const { data } = await customerApi.findAll(query);
-
-      setData(data.Customers);
+      setData(data.data || data.customers || data.Customers || []);
       setTotal(data.total);
     } finally {
       setLoading(false);
     }
-  };
+  }, [query]);
 
-  return { Customers: data, total, fetchData, loading, setQuery };
+  return { data, total, fetchData, loading, setQuery, query };
 };

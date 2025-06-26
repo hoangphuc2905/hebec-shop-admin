@@ -8,8 +8,8 @@ import { StoreInfoPage } from "views/StoreInfoPage/StoreInfoPage";
 import { ProductCategoryPage } from "views/ProductCategoryPage/ProductCategoryPage";
 import { ProductPage } from "views/ProductPage/ProductPage";
 import ClientPage from "views/Client/ClientPage";
-import { Customer } from "views/Customer/Customer";
-import { Order } from "views/Order/Order";
+import { Customer } from "views/Customer/CustomerPage";
+import { Order } from "views/Order/OrderPage";
 import LogoutPage from "views/Logout/LogoutPage";
 
 export interface Route extends RouteObject {
@@ -66,13 +66,7 @@ export const adminRoutes: Route[] = [
     name: "customer",
     element: <Customer title="Danh sách khách hàng" />,
   },
-  {
-    title: "Client",
-    path: "client/san-pham",
-    name: "client/san-pham",
-    element: <ClientPage title="Thông tin cá nhân" />,
-    // permissions: [EPermissions.Profile],
-  },
+
   {
     title: "Thông tin cá nhân",
     path: "profile",

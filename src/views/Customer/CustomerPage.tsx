@@ -18,19 +18,17 @@ import { Customer as CustomerType } from "types/customer";
 import { getTitle } from "utils";
 import { $url } from "utils/url";
 import { CustomerModal } from "./components/CustomerModal";
+import { useCustomer } from "hooks/useCustomer";
 
 const { ColumnGroup, Column } = Table;
 const { RangePicker } = DatePicker;
 
 export const Customer = ({ title = "" }) => {
-  const [query, setQuery] = useState<QueryParam>({
+  const { query, setQuery, loading, data, total, fetchData } = useCustomer({
     page: 1,
     limit: 10,
     search: "",
   });
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<CustomerType[]>([]);
-  const [total, setTotal] = useState(0);
   const [selectedCustomer, setSelectedCustomer] = useState<
     Partial<CustomerType>
   >({});
@@ -42,21 +40,13 @@ export const Customer = ({ title = "" }) => {
 
   useEffect(() => {
     fetchData();
-  }, [query]);
-
-  const fetchData = async () => {
-    setLoading(true);
-    const res = await customerApi.findAll(query);
-    setLoading(false);
-    setData(res.data.data || res.data.customers || []);
-    setTotal(res.data.total);
-  };
+  }, [query, fetchData]);
 
   return (
     <div>
       <div className="filter-container mb-4">
-        {/* Hàng 1: Các filter + nút tìm kiếm */}
-        <div className="filter-row">
+        {/* Hàng 1: Các filter + nút tìm kiếm + Thêm mới */}
+        <div className="filter-row" style={{ alignItems: "end" }}>
           <div className="filter-item">
             <label className="block font-semibold mb-2">Tìm kiếm</label>
             <Input
@@ -76,42 +66,6 @@ export const Customer = ({ title = "" }) => {
                 }
               }}
             />
-          </div>
-          <div className="filter-item">
-            <label className="block font-semibold mb-2">Có SĐT</label>
-            <Select
-              placeholder="Tất cả"
-              allowClear
-              onChange={(value) => {
-                query.hasPhone = value;
-                query.page = 1;
-                setQuery({ ...query });
-              }}
-            >
-              <Select.Option value="yes">Có</Select.Option>
-              <Select.Option value="no">Không</Select.Option>
-            </Select>
-          </div>
-          <div className="filter-item">
-            <label className="block font-semibold mb-2">Khách Zalo</label>
-            <Select
-              placeholder="Tất cả"
-              allowClear
-              onChange={(value) => {
-                query.isZalo = value;
-                query.page = 1;
-                setQuery({ ...query });
-              }}
-            >
-              <Select.Option value="yes">Có</Select.Option>
-              <Select.Option value="no">Không</Select.Option>
-            </Select>
-          </div>
-          <div className="filter-item">
-            <label className="block font-semibold mb-1">Theo dõi OA</label>
-            <Select placeholder="Tất cả">
-              <Select.Option value="">Tất cả</Select.Option>
-            </Select>
           </div>
 
           <div className="filter-item">
@@ -141,15 +95,10 @@ export const Customer = ({ title = "" }) => {
               onClick={fetchData}
               type="primary"
               icon={<SearchOutlined />}
-              style={{ minWidth: 110 }}
+              style={{ minWidth: 110, marginRight: 8 }}
             >
               Tìm kiếm
             </Button>
-          </div>
-        </div>
-        {/* Hàng 2: Thêm mới + tổng số lượng */}
-        <div className="filter-bottom">
-          <div className="filter-buttons">
             <Button
               onClick={() => {
                 modalRef.current?.handleCreate();
@@ -160,6 +109,9 @@ export const Customer = ({ title = "" }) => {
               Thêm mới
             </Button>
           </div>
+        </div>
+        {/* Hàng 2: tổng số lượng */}
+        <div className="filter-bottom">
           <div className="filter-summary">
             <span>
               <b>Tổng số lượng:</b> {total} khách
@@ -173,8 +125,8 @@ export const Customer = ({ title = "" }) => {
           rowKey="id"
           dataSource={data}
           pagination={{
-            current: query.page,
-            pageSize: query.limit,
+            current: query?.page || 1,
+            pageSize: query?.limit || 10,
             total: total,
             showSizeChanger: true,
             onChange: (page, pageSize) => {

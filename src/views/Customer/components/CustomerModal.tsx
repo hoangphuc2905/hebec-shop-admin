@@ -39,6 +39,8 @@ export const CustomerModal = React.forwardRef(
           setStatus("create");
         },
         handleUpdate: async (customer: Customer) => {
+          // Reset form trước khi set dữ liệu mới
+          form.resetFields();
           // Gọi API lấy thông tin khách hàng mới nhất
           const res = await customerApi.findById(customer.id);
           const data = res.data.customer || customer;
@@ -58,7 +60,7 @@ export const CustomerModal = React.forwardRef(
                   // Load wards theo quận đã chọn
                   if (data.districtId) {
                     const selectedDistrict = (res.data.districts || []).find(
-                      (d: { id: any; }) => d.id === data.districtId
+                      (d: { id: any }) => d.id === data.districtId
                     );
                     if (selectedDistrict) {
                       wardApi
@@ -66,10 +68,20 @@ export const CustomerModal = React.forwardRef(
                         .then((res2) => {
                           setWards(res2.data.wards || []);
                         });
+                    } else {
+                      setWards([]);
                     }
+                  } else {
+                    setWards([]);
                   }
                 });
+            } else {
+              setDistricts([]);
+              setWards([]);
             }
+          } else {
+            setDistricts([]);
+            setWards([]);
           }
         },
       }),
@@ -86,9 +98,10 @@ export const CustomerModal = React.forwardRef(
     const handleCityChange = (parentCode: string) => {
       districtApi
         .findAll({ parentCode })
-        .then((res) => setDistricts(res.data.districts || [])); // Sửa ở đây
+        .then((res) => setDistricts(res.data.districts || []));
       setWards([]);
-      form.setFieldsValue({ district: undefined, ward: undefined });
+      // Reset districtId và wardId
+      form.setFieldsValue({ districtId: undefined, wardId: undefined });
     };
 
     const handleDistrictChange = (parentCode: string) => {
@@ -145,6 +158,10 @@ export const CustomerModal = React.forwardRef(
         }}
       >
         <Form layout="vertical" form={form}>
+          {/* Thêm trường ẩn id để luôn giữ id trong form */}
+          <Form.Item name="id" style={{ display: "none" }}>
+            <Input type="hidden" />
+          </Form.Item>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item label="Họ và tên" name="fullName" rules={rules}>
@@ -167,10 +184,19 @@ export const CustomerModal = React.forwardRef(
                   showSearch
                   placeholder="Chọn tỉnh/thành phố"
                   onChange={(value) => {
-                    const selectedCity = cities.find((city) => city.id === value);
+                    const selectedCity = cities.find(
+                      (city) => city.id === value
+                    );
                     if (selectedCity) {
                       handleCityChange(selectedCity.code);
                     }
+                    // Reset districtId và wardId khi đổi tỉnh
+                    form.setFieldsValue({
+                      districtId: undefined,
+                      wardId: undefined,
+                    });
+                    setDistricts([]);
+                    setWards([]);
                   }}
                   options={cities.map((city) => ({
                     label: city.nameWithType,

@@ -23,6 +23,7 @@ export const useProductCategory = ({ initQuery }: UseProductCategoryProps) => {
         ...newQuery,
       });
 
+
       setData(data.productCategories);
       setTotal(data.total);
     } finally {

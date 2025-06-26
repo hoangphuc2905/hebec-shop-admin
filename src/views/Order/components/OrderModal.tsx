@@ -1,4 +1,17 @@
-import { Col, Form, Input, message, Modal, Row, Steps, Empty } from "antd";
+import {
+  Col,
+  Form,
+  Input,
+  message,
+  Modal,
+  Row,
+  Steps,
+  Empty,
+  Button,
+  Table,
+  InputNumber,
+  Select,
+} from "antd";
 import { Rule } from "antd/lib/form";
 import { orderApi } from "api/order.api";
 import { productApi } from "api/product.api";
@@ -6,20 +19,11 @@ import { customerApi } from "api/customer.api";
 import { cityApi } from "api/city.api";
 import { districtApi } from "api/district.api";
 import { wardApi } from "api/ward.api";
-import { SingleImageUpload } from "components/Upload/SingleImageUpload";
 import React, { useEffect, useImperativeHandle, useState, useRef } from "react";
 import { ModalStatus } from "types/modal";
 import { Order, PaymentMethod } from "types/order";
-import {
-  Modal as AntdModal,
-  Tag,
-  Table,
-  Button,
-  InputNumber,
-  Select,
-} from "antd";
-import { PaymentMethodTrans, OrderStatusTrans } from "types/order";
 import { CustomerModal } from "../../Customer/components/CustomerModal";
+import { ProductSelectModal } from "./ProductSelectModal";
 
 const rules: Rule[] = [{ required: true }];
 
@@ -108,10 +112,9 @@ export const OrderModal = React.forwardRef(
     const handleSelectProduct = (product: any) => {
       setCart((prevCart) => {
         const idx = prevCart.findIndex(
-          (item) => item.productId === product.id // so sánh productId thực tế
+          (item) => item.productId === product.id 
         );
         if (idx !== -1) {
-          // Nếu đã có, tăng số lượng
           return prevCart.map((item, i) =>
             i === idx ? { ...item, quantity: item.quantity + 1 } : item
           );
@@ -120,8 +123,8 @@ export const OrderModal = React.forwardRef(
           return [
             ...prevCart,
             {
-              id: Date.now(), // id tạm cho Table
-              productId: product.id, // id thực tế của sản phẩm
+              id: Date.now(), 
+              productId: product.id,
               name: product.name,
               unitPrice: product.unitPrice ?? product.price,
               price: product.unitPrice ?? product.price,
@@ -148,7 +151,6 @@ export const OrderModal = React.forwardRef(
       );
     };
 
-    // Tổng kết
     const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
     const totalMoney = cart.reduce(
       (sum, item) => sum + (item.unitPrice || 0) * item.quantity,
@@ -190,8 +192,11 @@ export const OrderModal = React.forwardRef(
     const fetchWards = async (districtCode: string) => {
       try {
         const res = await wardApi.findAll({ districtCode });
-        setWardList(res.data?.items || []);
-      } catch {}
+        console.log("Ward API response:", res.data); // Thêm dòng này để kiểm tra dữ liệu trả về
+        setWardList(res.data?.wards || res.data?.items || []);
+      } catch (e) {
+        console.error("Ward API error:", e);
+      }
     };
 
     // Các bước
@@ -216,14 +221,26 @@ export const OrderModal = React.forwardRef(
             >
               <Table.Column title="Sản phẩm" dataIndex="name" key="name" />
               <Table.Column
-                title="Đơn giá (VNĐ)"
+                title={
+                  <div style={{ textAlign: "right" }}>
+                    Đơn giá
+                    <div style={{ fontWeight: "normal", fontSize: 12 }}></div>
+                  </div>
+                }
                 dataIndex="unitPrice"
                 key="unitPrice"
+                align="right"
                 render={(v) => (v ? v.toLocaleString("vi-VN") : 0)}
               />
               <Table.Column
-                title="Khuyến mãi (VNĐ)"
+                title={
+                  <div style={{ textAlign: "right" }}>
+                    Khuyến mãi
+                    <div style={{ fontWeight: "normal", fontSize: 12 }}></div>
+                  </div>
+                }
                 key="discount"
+                align="right"
                 render={(_, r) =>
                   r.price && r.unitPrice && r.price - r.unitPrice > 0
                     ? (r.price - r.unitPrice).toLocaleString("vi-VN")
@@ -231,9 +248,10 @@ export const OrderModal = React.forwardRef(
                 }
               />
               <Table.Column
-                title="Số lượng"
+                title={<div style={{ textAlign: "right" }}>Số lượng</div>}
                 dataIndex="quantity"
                 key="quantity"
+                align="right"
                 render={(_, r) => (
                   <InputNumber
                     min={1}
@@ -244,8 +262,14 @@ export const OrderModal = React.forwardRef(
                 )}
               />
               <Table.Column
-                title="Thành tiền (VNĐ)"
+                title={
+                  <div style={{ textAlign: "right" }}>
+                    Thành tiền
+                    <div style={{ fontWeight: "normal", fontSize: 12 }}></div>
+                  </div>
+                }
                 key="total"
+                align="right"
                 render={(_, r) =>
                   ((r.unitPrice || 0) * r.quantity).toLocaleString("vi-VN")
                 }
@@ -408,32 +432,6 @@ export const OrderModal = React.forwardRef(
               visible={addressModalVisible}
               title="Thêm mới địa chỉ nhận hàng"
               onCancel={() => setAddressModalVisible(false)}
-              onOk={async () => {
-                const values = await addressForm.validateFields();
-                // Tạo địa chỉ mới (giả lập, thực tế nên gọi API lưu)
-                const newAddress = {
-                  id: Date.now(),
-                  ...values,
-                  address: `${values.detail}, ${
-                    wardList.find((w) => w.code === values.wardCode)?.name || ""
-                  }, ${
-                    districtList.find((d) => d.code === values.districtCode)
-                      ?.name || ""
-                  }, ${
-                    cityList.find((c) => c.code === values.cityCode)?.name || ""
-                  }`,
-                };
-                // Thêm vào danh sách địa chỉ của khách hàng đang chọn
-                if (selectedCustomer) {
-                  selectedCustomer.addresses = [
-                    ...(selectedCustomer.addresses || []),
-                    newAddress,
-                  ];
-                  setSelectedAddress(newAddress);
-                }
-                setAddressModalVisible(false);
-                addressForm.resetFields();
-              }}
               footer={null}
               width={500}
             >
@@ -460,27 +458,36 @@ export const OrderModal = React.forwardRef(
                   <Select
                     showSearch
                     placeholder="Chọn tỉnh/thành phố"
+                    optionFilterProp="children"
                     onChange={(cityCode) => {
-                      // Tìm city theo code
-                      const selectedCity = cityList.find(
-                        (c) => c.code === cityCode
-                      );
-                      if (selectedCity) {
-                        districtApi
-                          .findAll({ parentCode: selectedCity.code })
-                          .then((res) => {
-                            setDistrictList(res.data.districts || []);
-                          });
-                      }
-                      setWardList([]);
                       addressForm.setFieldsValue({
                         districtCode: undefined,
                         wardCode: undefined,
                       });
+                      setDistrictList([]);
+                      setWardList([]);
+                      const city = cityList.find(
+                        (c) => c.code === cityCode || c.id === cityCode
+                      );
+                      const cityCodeVal = city?.code || cityCode;
+                      if (cityCodeVal) {
+                        districtApi
+                          .findAll({ parentCode: cityCodeVal })
+                          .then((res) => {
+                            setDistrictList(
+                              res.data?.items || res.data?.districts || []
+                            );
+                          });
+                      }
                     }}
+                    filterOption={(input, option) =>
+                      (option?.label as string)
+                        ?.toLowerCase()
+                        .includes(input.toLowerCase())
+                    }
                     options={cityList.map((city) => ({
-                      label: city.nameWithType,
-                      value: city.code,
+                      label: city.nameWithType || city.name,
+                      value: city.code || city.id,
                     }))}
                   />
                 </Form.Item>
@@ -492,24 +499,34 @@ export const OrderModal = React.forwardRef(
                   <Select
                     showSearch
                     placeholder="Chọn quận/huyện"
+                    optionFilterProp="children"
+                    disabled={!addressForm.getFieldValue("cityCode")}
                     onChange={(districtCode) => {
-                      const selectedDistrict = districtList.find(
-                        (d) => d.code === districtCode
+                      addressForm.setFieldsValue({ wardCode: undefined });
+                      setWardList([]);
+                      const district = districtList.find(
+                        (d) => d.code === districtCode || d.id === districtCode
                       );
-                      if (selectedDistrict) {
+                      const districtCodeVal = district?.code || districtCode;
+                      if (districtCodeVal) {
                         wardApi
-                          .findAll({ parentCode: selectedDistrict.code })
+                          .findAll({ parentCode: districtCodeVal })
                           .then((res) => {
-                            setWardList(res.data.wards || []);
+                            setWardList(
+                              res.data?.items || res.data?.wards || []
+                            );
                           });
                       }
-                      addressForm.setFieldsValue({ wardCode: undefined });
                     }}
+                    filterOption={(input, option) =>
+                      (option?.label as string)
+                        ?.toLowerCase()
+                        .includes(input.toLowerCase())
+                    }
                     options={districtList.map((d) => ({
-                      label: d.nameWithType,
-                      value: d.code,
+                      label: d.nameWithType || d.name,
+                      value: d.code || d.id,
                     }))}
-                    disabled={!addressForm.getFieldValue("cityCode")}
                   />
                 </Form.Item>
                 <Form.Item
@@ -647,6 +664,17 @@ export const OrderModal = React.forwardRef(
       },
     ];
 
+    const getWardId = () => {
+      // Nếu selectedAddress.wardId có, ưu tiên dùng
+      if (selectedAddress?.wardId) return Number(selectedAddress.wardId);
+      // Nếu chỉ có wardCode, map sang id từ wardList
+      if (selectedAddress?.wardCode) {
+        const found = wardList.find((w) => w.code == selectedAddress.wardCode);
+        return found ? Number(found.id) : 0;
+      }
+      return 0;
+    };
+
     return (
       <Modal
         onCancel={() => {
@@ -741,9 +769,16 @@ export const OrderModal = React.forwardRef(
                       name: item.name,
                     })),
                     customerId: Number(selectedCustomer.id),
-                    cityId: selectedAddress?.cityCode || 0,
-                    districtId: selectedAddress?.districtCode || 0,
-                    wardId: selectedAddress?.wardCode || 0,
+                    cityId:
+                      Number(
+                        selectedAddress?.cityId || selectedAddress?.cityCode
+                      ) || 0,
+                    districtId:
+                      Number(
+                        selectedAddress?.districtId ||
+                          selectedAddress?.districtCode
+                      ) || 0,
+                    wardId: getWardId(),
                   };
                   await orderApi.create(payload);
                   message.success("Tạo đơn hàng thành công!");
@@ -783,303 +818,3 @@ export const OrderModal = React.forwardRef(
     );
   }
 );
-
-interface OrderDetailModalProps {
-  visible: boolean;
-  order: Order | null;
-  onClose: () => void;
-  onConfirm: () => void;
-  onCancelOrder: () => void;
-  onDownloadInvoice: () => void;
-}
-
-export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
-  visible,
-  order,
-  onClose,
-  onConfirm,
-  onCancelOrder,
-  onDownloadInvoice,
-}) => {
-  if (!order) return null;
-
-  // Format date
-  const formatDate = (date: number | string) => {
-    if (!date) return "-";
-    let d: Date;
-    if (typeof date === "number") {
-      d = new Date(date < 10000000000 ? date * 1000 : date);
-    } else {
-      d = new Date(date);
-    }
-    if (isNaN(d.getTime())) return "-";
-    return (
-      d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) +
-      ", " +
-      d.toLocaleDateString("vi-VN")
-    );
-  };
-
-  // Table columns for products
-  const columns = [
-    {
-      title: "Sản phẩm",
-      dataIndex: "name",
-      key: "name",
-      render: (text: string, record: any) => (
-        <div style={{ display: "flex", alignItems: "center" }}>
-          <img
-            src={record.product?.image || ""}
-            alt=""
-            style={{ width: 40, height: 40, marginRight: 8 }}
-          />
-          <span>{text}</span>
-        </div>
-      ),
-    },
-    {
-      title: "Đơn giá",
-      dataIndex: "finalPrice",
-      key: "finalPrice",
-      render: (price: number, record: any) => (
-        <>
-          {record.price !== price && (
-            <span
-              style={{
-                textDecoration: "line-through",
-                color: "#aaa",
-                marginRight: 4,
-              }}
-            >
-              {record.price?.toLocaleString("vi-VN")}đ
-            </span>
-          )}
-          <span>{price?.toLocaleString("vi-VN")}đ</span>
-        </>
-      ),
-    },
-    {
-      title: "Số lượng",
-      dataIndex: "quantity",
-      key: "quantity",
-    },
-    {
-      title: "Thành tiền",
-      key: "total",
-      render: (_: any, record: any) => (
-        <span>
-          {(record.finalPrice * record.quantity).toLocaleString("vi-VN")}đ
-        </span>
-      ),
-    },
-  ];
-
-  const handleConfirm = () => {
-    Modal.confirm({
-      title: "Xác nhận đơn hàng",
-      content: "Bạn có chắc chắn muốn xác nhận đơn hàng này không?",
-      okText: "Xác nhận",
-      cancelText: "Hủy",
-      onOk: async () => {
-        if (!order) return;
-        try {
-          await orderApi.update(order.id, {
-            order: { ...order, status: "CONFIRM" },
-          });
-          onConfirm?.();
-          onClose();
-          window.location.reload();
-        } catch (e) {}
-      },
-    });
-  };
-
-  return (
-    <AntdModal
-      visible={visible}
-      onCancel={onClose}
-      footer={null}
-      width={900}
-      title={
-        <span>
-          Chi tiết đơn hàng{" "}
-          <span style={{ color: "#169c9f" }}>{order.code}</span>
-        </span>
-      }
-    >
-      <Row gutter={24}>
-        <Col span={12}>
-          <h3>Thông tin đơn hàng</h3>
-          <div>
-            <b>Đơn hàng:</b>{" "}
-            <span style={{ color: "#169c9f" }}>{order.code}</span>
-          </div>
-          <div>
-            <b>Thời gian tạo:</b> <span>{formatDate(order.createdAt)}</span>
-          </div>
-          <div>
-            <b>Tạo bởi:</b> Khách hàng
-          </div>
-          <div>
-            <b>Thời gian giao hàng:</b>{" "}
-            <span>{formatDate(order.createdAt)}</span>
-          </div>
-          <div>
-            <b>Phương thức thanh toán:</b>{" "}
-            <Tag color={order.paymentMethod === "COD" ? "blue" : "pink"}>
-              {PaymentMethodTrans[
-                order.paymentMethod as unknown as keyof typeof PaymentMethodTrans
-              ] || order.paymentMethod}
-            </Tag>
-          </div>
-          <div>
-            <b>Trạng thái đơn hàng:</b>{" "}
-            <Tag color={OrderStatusTrans[order.status]?.color || "default"}>
-              {OrderStatusTrans[order.status]?.title || order.status}
-            </Tag>
-          </div>
-          <div>
-            <b>Ghi chú:</b> {order.note || "-"}
-          </div>
-        </Col>
-        <Col span={12}>
-          <h3>
-            Thông tin người nhận{" "}
-            <a href="#" style={{ fontSize: 12, marginLeft: 8 }}>
-              ✎ Chỉnh sửa
-            </a>
-          </h3>
-          <div>
-            <b>Khách hàng:</b> Khách hàng mới - {order.customer?.phone}
-          </div>
-          <div>
-            <b>Người nhận:</b> {order.receiverName}
-          </div>
-          <div>
-            <b>Số điện thoại:</b> {order.receiverPhone}
-          </div>
-          <div>
-            <b>Địa chỉ nhận hàng:</b> {order.receiverAddress}
-          </div>
-        </Col>
-      </Row>
-
-      <div style={{ marginTop: 24 }}>
-        <Table
-          columns={columns}
-          dataSource={order.details}
-          pagination={false}
-          rowKey="id"
-          bordered
-          title={() => null}
-        />
-      </div>
-
-      <Row style={{ marginTop: 16 }}>
-        <Col span={12}></Col>
-        <Col span={12}>
-          <div style={{ textAlign: "right" }}>
-            <div>
-              <b>Tiền hàng:</b> {order.moneyProduct?.toLocaleString("vi-VN")}đ
-            </div>
-            <div>
-              <b>Phí ship:</b> {order.shipFee?.toLocaleString("vi-VN")}đ
-            </div>
-            <div style={{ fontSize: 18, fontWeight: 600, marginTop: 8 }}>
-              Tổng cộng:{" "}
-              <span style={{ color: "#169c9f" }}>
-                {order.moneyFinal?.toLocaleString("vi-VN")}đ
-              </span>
-            </div>
-          </div>
-        </Col>
-      </Row>
-
-      <div style={{ marginTop: 24, textAlign: "right" }}>
-        <Button danger onClick={onCancelOrder} style={{ marginRight: 8 }}>
-          Hủy đơn
-        </Button>
-        <Button type="primary" onClick={handleConfirm}>
-          Xác nhận
-        </Button>
-      </div>
-    </AntdModal>
-  );
-};
-
-// Modal chọn sản phẩm
-const ProductSelectModal = ({ visible, onSelect, onCancel }: any) => {
-  const [search, setSearch] = useState("");
-  const [products, setProducts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  // Lấy danh sách sản phẩm từ API
-  useEffect(() => {
-    if (!visible) return;
-    setLoading(true);
-    productApi
-      .findAll({ search, page: 1, limit: 50 })
-      .then((res: any) => {
-        setProducts(res.data.products || res.data.items || []);
-      })
-      .finally(() => setLoading(false));
-  }, [visible, search]);
-
-  return (
-    <Modal
-      visible={visible}
-      title="Chọn sản phẩm"
-      onCancel={onCancel}
-      footer={null}
-      width={900}
-    >
-      <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
-        <Input
-          allowClear
-          placeholder="Nhập tên sản phẩm"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ width: 250 }}
-        />
-        {/* Có thể thêm filter loại sản phẩm nếu cần */}
-      </div>
-      <Table
-        dataSource={products}
-        rowKey="id"
-        loading={loading}
-        pagination={{ pageSize: 50, showTotal: (t) => `Tổng ${t} dòng` }}
-        bordered
-      >
-        <Table.Column
-          title="Tên SP"
-          key="name"
-          render={(_, r: any) => (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <img
-                src={r.image || r.thumbnail || r.avatar || ""}
-                alt=""
-                style={{ width: 40, height: 40 }}
-              />
-              <span>{r.name}</span>
-            </div>
-          )}
-        />
-        <Table.Column
-          title="Giá gốc"
-          dataIndex="unitPrice"
-          key="unitPrice"
-          render={(v) => v?.toLocaleString("vi-VN")}
-        />
-        <Table.Column
-          title="Thao tác"
-          key="action"
-          render={(_, r: any) => (
-            <Button type="primary" onClick={() => onSelect(r)}>
-              Chọn
-            </Button>
-          )}
-        />
-      </Table>
-    </Modal>
-  );
-};

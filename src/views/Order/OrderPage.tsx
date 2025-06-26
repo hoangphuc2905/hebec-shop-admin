@@ -3,7 +3,17 @@ import {
   SearchOutlined,
   CloseCircleOutlined,
 } from "@ant-design/icons";
-import { Button, Input, Select, Space, Spin, Table, Tag } from "antd";
+import {
+  Button,
+  Input,
+  Select,
+  Space,
+  Spin,
+  Table,
+  Tag,
+  Tabs,
+  Badge,
+} from "antd";
 import { orderApi } from "api/order.api";
 import React, { useEffect, useState, useRef } from "react";
 import { ModalStatus } from "types/modal";
@@ -17,46 +27,56 @@ import {
 import { PaymentStatusTrans } from "types/paymentStatus";
 import { getTitle } from "utils";
 import { $url } from "utils/url";
-import { OrderModal, OrderDetailModal } from "./components/OrderModal";
+import { OrderModal } from "./components/OrderModal";
+import { OrderDetailModal } from "./components/OrderDetailModal";
 import { Link } from "react-router-dom";
+import { useOrder } from "hooks/useOrder";
+import { useOrderStatusCounts } from "hooks/useOrderStatusCounts";
 
 const { ColumnGroup, Column } = Table;
 
 export const Order = ({ title = "" }) => {
-  const [query, setQuery] = useState<QueryParam>({
-    page: 1,
-    limit: 10,
-    search: "",
+  // Sử dụng custom hook
+  const {
+    orders,
+    totalOrder,
+    fetchOrder,
+    loadingOrder,
+    setQueryOrder,
+    queryOrder,
+  } = useOrder({
+    initQuery: {
+      page: 1,
+      limit: 1000,
+      search: "",
+    },
   });
-  const [searchInput, setSearchInput] = useState(""); // Thêm state này
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<TypeOrder[]>([]);
-  const [total, setTotal] = useState(0);
-  const [selectedOrder, setSelectedOrder] = useState<Partial<TypeOrder>>({});
+
+  const { statusCounts, totalAll } = useOrderStatusCounts();
+
+  const [searchInput, setSearchInput] = useState(""); // vẫn giữ state này nếu cần
+  const [selectedOrder, setSelectedOrder] = useState<TypeOrder | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedOrderDetail, setSelectedOrderDetail] =
     useState<TypeOrder | null>(null);
   const modalRef = useRef<OrderModal>(null);
+  const [statusCountsAll, setStatusCountsAll] = useState<
+    Record<string, number>
+  >({});
+  const [totalAllState, setTotalAll] = useState(0);
 
   useEffect(() => {
     document.title = getTitle(title);
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [query]);
+    fetchOrder();
+    // eslint-disable-next-line
+  }, [queryOrder]);
 
   useEffect(() => {
-    setSearchInput(query.search ?? "");
-  }, [query.search]);
-
-  const fetchData = async () => {
-    setLoading(true);
-    const res = await orderApi.findAll(query);
-    setLoading(false);
-    setData(res.data.orders);
-    setTotal(res.data.total);
-  };
+    setSearchInput(queryOrder.search ?? "");
+  }, [queryOrder.search]);
 
   // Lấy danh sách trạng thái từ OrderStatusTrans
   const orderStatusOptions = Object.entries(OrderStatusTrans).map(
@@ -66,8 +86,82 @@ export const Order = ({ title = "" }) => {
     })
   );
 
+  // Đếm số lượng đơn theo từng trạng thái
+  const statusCountsLocal = orders.reduce((acc, order) => {
+    acc[order.status] = (acc[order.status] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  // Danh sách tab trạng thái
+  const tabItems = [
+    {
+      key: "",
+      label: (
+        <span>
+          Tất cả{" "}
+          <Badge
+            count={totalOrder}
+            style={{ backgroundColor: "#52c41a", marginLeft: 4 }}
+            showZero
+          />
+        </span>
+      ),
+    },
+    ...Object.entries(OrderStatusTrans).map(([key, value]) => ({
+      key,
+      label: (
+        <span>
+          {value.title}{" "}
+          <Badge
+            count={statusCounts[key] || 0}
+            style={{ backgroundColor: value.color, marginLeft: 4 }}
+            showZero
+          />
+        </span>
+      ),
+    })),
+  ];
+
   return (
     <div>
+      {/* Tabs trạng thái */}
+      <Tabs
+        activeKey={queryOrder.status || ""}
+        onChange={(key) =>
+          setQueryOrder({ ...queryOrder, status: key || undefined, page: 1 })
+        }
+        style={{ marginBottom: 16 }}
+      >
+        <Tabs.TabPane
+          tab={
+            <span>
+              Tất cả{" "}
+              <Badge
+                count={totalAll}
+                style={{ backgroundColor: "#52c41a", marginLeft: 4 }}
+                showZero
+              />
+            </span>
+          }
+          key=""
+        />
+        {Object.entries(OrderStatusTrans).map(([key, value]) => (
+          <Tabs.TabPane
+            tab={
+              <span>
+                {value.title}{" "}
+                <Badge
+                  count={statusCounts[key] || 0}
+                  style={{ backgroundColor: value.color, marginLeft: 4 }}
+                  showZero
+                />
+              </span>
+            }
+            key={key}
+          />
+        ))}
+      </Tabs>
+
       <div className="filter-container">
         <Space>
           <div className="filter-item">
@@ -76,50 +170,50 @@ export const Order = ({ title = "" }) => {
               value={searchInput}
               allowClear
               onKeyDown={(ev) => {
-                if (ev.code == "Enter") {
-                  setQuery({ ...query, search: searchInput, page: 1 });
+                if (ev.code === "Enter") {
+                  setQueryOrder({
+                    ...queryOrder,
+                    search: searchInput,
+                    page: 1,
+                  });
                 }
               }}
               size="middle"
               onChange={(ev) => {
                 setSearchInput(ev.currentTarget.value);
+                if (ev.currentTarget.value === "") {
+                  setQueryOrder({ ...queryOrder, search: "", page: 1 });
+                }
               }}
               placeholder="Tìm kiếm"
             />
           </div>
-          <div className="filter-item">
-            <label htmlFor="">Trạng thái đơn</label>
-            <Select
-              allowClear
-              style={{ width: 180 }}
-              placeholder="Chọn trạng thái"
-              value={query.status}
-              onChange={(value) =>
-                setQuery({ ...query, status: value, page: 1 })
-              }
-              options={orderStatusOptions}
-            />
-          </div>
 
-          <div className="filter-item btn">
+          <div
+            className="filter-item btn"
+            style={{
+              display: "flex",
+              gap: 12,
+              alignItems: "center",
+              flexDirection: "row",
+            }}
+          >
             <Button
-              onClick={() =>
-                setQuery({ ...query, search: searchInput, page: 1 })
-              }
+              onClick={() => {
+                setQueryOrder({ ...queryOrder, search: searchInput, page: 1 });
+              }}
               type="primary"
-              icon={<SearchOutlined />}
+              style={{ height: 35, width: 100 }}
             >
               Tìm kiếm
             </Button>
-          </div>
 
-          <div className="filter-item btn">
             <Button
               onClick={() => {
                 modalRef.current?.handleCreate();
               }}
               type="primary"
-              icon={<PlusOutlined />}
+              style={{ height: 35, width: 100 }}
             >
               Thêm mới
             </Button>
@@ -127,17 +221,17 @@ export const Order = ({ title = "" }) => {
         </Space>
       </div>
 
-      <Spin spinning={loading}>
+      <Spin spinning={loadingOrder}>
         <Table
           rowKey="id"
-          dataSource={data}
+          dataSource={orders}
           pagination={{
-            current: query.page,
-            pageSize: query.limit,
-            total: total,
+            current: queryOrder.page,
+            pageSize: queryOrder.limit,
+            total: totalOrder,
             showSizeChanger: true,
             onChange: (page, pageSize) => {
-              setQuery({ ...query, page, limit: pageSize });
+              setQueryOrder({ ...queryOrder, page, limit: pageSize });
             },
             showTotal: (total) => `Tổng ${total} đơn hàng`,
           }}
@@ -147,12 +241,16 @@ export const Order = ({ title = "" }) => {
             dataIndex="code"
             key="code"
             render={(text, record: TypeOrder) => (
-              <Link
-                to={`/admin/orders/${record.id}`}
+              <a
                 className="order-code-link"
+                style={{ cursor: "pointer" }}
+                onClick={() => {
+                  setSelectedOrderDetail(record);
+                  setDetailModalVisible(true);
+                }}
               >
                 {text}
-              </Link>
+              </a>
             )}
           />
           <Column
@@ -219,7 +317,6 @@ export const Order = ({ title = "" }) => {
               );
             }}
           />
-
           <Column
             title="Ngày tạo đơn hàng"
             dataIndex="createdAt"
@@ -242,7 +339,6 @@ export const Order = ({ title = "" }) => {
               });
             }}
           />
-
           <Column
             key="action"
             render={(text, record: TypeOrder) => (
@@ -262,16 +358,14 @@ export const Order = ({ title = "" }) => {
         </Table>
       </Spin>
 
-      <OrderModal onSubmitOk={fetchData} onClose={() => {}} ref={modalRef} />
+      <OrderModal onSubmitOk={fetchOrder} onClose={() => {}} ref={modalRef} />
 
       {/* Modal chi tiết đơn hàng */}
       <OrderDetailModal
         visible={detailModalVisible}
         order={selectedOrderDetail}
         onClose={() => setDetailModalVisible(false)}
-        onConfirm={() => {
-          /* xử lý xác nhận đơn hàng nếu cần */
-        }}
+        onConfirm={fetchOrder} // <-- truyền fetchData vào đây
         onCancelOrder={() => {
           /* xử lý hủy đơn hàng nếu cần */
         }}

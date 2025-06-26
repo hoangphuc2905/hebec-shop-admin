@@ -24,4 +24,20 @@ export const orderApi = {
       url: `/v1/store/order/${id}`,
       method: "delete",
     }),
+  updateStatus: (id: number, status: string): AxiosPromise<any> =>
+    request({
+      url: `/v1/store/order/${id}/${status.toLowerCase()}`,
+      method: "patch",
+    }),
+  updateReceiverAddress: (id: number, data: any): AxiosPromise<any> =>
+    request({
+      url: `/v1/store/order/${id}/receiverAddress`,
+      method: "patch",
+      data,
+    }),
+  findById: (id: number): AxiosPromise<any> =>
+    request({
+      url: `/v1/store/order/${id}`,
+      method: "get",
+    }),
 };
