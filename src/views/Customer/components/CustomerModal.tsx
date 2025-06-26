@@ -41,7 +41,6 @@ export const CustomerModal = React.forwardRef(
         handleUpdate: async (customer: Customer) => {
           // Reset form trước khi set dữ liệu mới
           form.resetFields();
-          // Gọi API lấy thông tin khách hàng mới nhất
           const res = await customerApi.findById(customer.id);
           const data = res.data.customer || customer;
 
